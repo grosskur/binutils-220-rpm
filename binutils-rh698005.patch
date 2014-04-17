@@ -1,0 +1,18 @@
+Index: binutils-2.20.51.0.2/bfd/elf.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf.c
++++ binutils-2.20.51.0.2/bfd/elf.c
+@@ -1069,6 +1069,13 @@ _bfd_elf_copy_private_bfd_data (bfd *ibf
+   /* Copy object attributes.  */
+   _bfd_elf_copy_obj_attributes (ibfd, obfd);
+ 
++  /* If the input BFD has the OSABI field set and the
++     output BFD does not, then copy the value.  */
++  if (elf_elfheader (ibfd)->e_ident [EI_OSABI] != ELFOSABI_NONE
++      && elf_elfheader (obfd)->e_ident [EI_OSABI] == ELFOSABI_NONE)
++    elf_elfheader (obfd)->e_ident [EI_OSABI] =
++      elf_elfheader (ibfd)->e_ident [EI_OSABI];
++
+   return TRUE;
+ }
+ 

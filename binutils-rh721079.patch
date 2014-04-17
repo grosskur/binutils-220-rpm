@@ -1,0 +1,378 @@
+2011-07-11  Alan Modra  <amodra@gmail.com>
+
+	* ld-powerpc/tocopt2.s, * ld-powerpc/tocopt2.out,
+	* ld-powerpc/tocopt2.d: New test.
+	* ld-powerpc/tocopt3.s, * ld-powerpc/tocopt3.d: New test.
+	* ld-powerpc/powerpc.exp (ppc64elftests) Run them.
+
+2011-02-15  Alan Modra  <amodra@gmail.com>
+
+	* elf64-ppc.c (ppc64_elf_edit_toc): Reinstate second read of
+	toc relocs.  Fuss over free(NULL).
+
+2011-02-09  Alan Modra  <amodra@gmail.com>
+
+	* elf64-ppc.c (ppc64_elf_edit_toc): Don't free toc relocs until
+	we are done.  When optimising large toc, check that a global
+	symbol on a toc reloc is defined in a kept section.
+
+2011-02-08  Alan Modra  <amodra@gmail.com>
+
+	* elf64-ppc.c (ppc64_elf_edit_toc): Don't segfault on NULL
+	local_syms when looking for local symbols in .toc.
+
+2010-10-14  Dave Korn  <dave.korn.cygwin@gmail.com> 
+
+	* lib/ld-lib.exp (proc regexp_diff): Extend verbose debug output.
+	(proc set_file_contents): Write a file with the supplied content.
+	(run_ld_link_tests): Add new 'ld' action to test linker output.
+
+Index: binutils-2.20.51.0.2/bfd/elf64-ppc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-ppc.c
++++ binutils-2.20.51.0.2/bfd/elf64-ppc.c
+@@ -7863,7 +7863,7 @@ ppc64_elf_edit_toc (struct bfd_link_info
+       Elf_Internal_Shdr *symtab_hdr;
+       Elf_Internal_Sym *local_syms;
+       struct elf_link_hash_entry **sym_hashes;
+-      Elf_Internal_Rela *relstart, *rel;
++      Elf_Internal_Rela *relstart, *rel, *toc_relocs;
+       unsigned long *skip, *drop;
+       unsigned char *used;
+       unsigned char *keep, last, some_unused;
+@@ -7878,6 +7878,7 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 	  || elf_discarded_section (toc))
+ 	continue;
+ 
++      toc_relocs = NULL;
+       local_syms = NULL;
+       symtab_hdr = &elf_symtab_hdr (ibfd);
+       sym_hashes = elf_sym_hashes (ibfd);
+@@ -7974,12 +7975,12 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 	  && toc->reloc_count != 0)
+ 	{
+ 	  /* Read toc relocs.  */
+-	  relstart = _bfd_elf_link_read_relocs (ibfd, toc, NULL, NULL,
+-						info->keep_memory);
+-	  if (relstart == NULL)
++	  toc_relocs = _bfd_elf_link_read_relocs (ibfd, toc, NULL, NULL,
++						  info->keep_memory);
++	  if (toc_relocs == NULL)
+ 	    goto error_ret;
+ 
+-	  for (rel = relstart; rel < relstart + toc->reloc_count; ++rel)
++	  for (rel = toc_relocs; rel < toc_relocs + toc->reloc_count; ++rel)
+ 	    {
+ 	      enum elf_ppc64_reloc_type r_type;
+ 	      unsigned long r_symndx;
+@@ -7997,6 +7998,10 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 			      r_symndx, ibfd))
+ 		goto error_ret;
+ 
++	      if (sym_sec == NULL
++		  || elf_discarded_section (sym_sec))
++		continue;
++
+ 	      if (!SYMBOL_CALLS_LOCAL (info, h))
+ 		continue;
+ 
+@@ -8035,11 +8040,8 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 		}
+ 
+ 	      skip[rel->r_offset >> 3]
+-		|= can_optimize | ((rel - relstart) << 2);
++		|= can_optimize | ((rel - toc_relocs) << 2);
+ 	    }
+-
+-	  if (elf_section_data (toc)->relocs != relstart)
+-	    free (relstart);
+ 	}
+ 
+       if (skip == NULL)
+@@ -8056,6 +8058,9 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 	      && relstart != NULL
+ 	      && elf_section_data (sec)->relocs != relstart)
+ 	    free (relstart);
++	  if (toc_relocs != NULL
++	      && elf_section_data (toc)->relocs != toc_relocs)
++	    free (toc_relocs);
+ 	  if (skip != NULL)
+ 	    free (skip);
+ 	  return FALSE;
+@@ -8295,7 +8300,7 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 		  else if ((skip[val >> 3] & can_optimize) != 0)
+ 		    {
+ 		      Elf_Internal_Rela *tocrel
+-			= elf_section_data (toc)->relocs + (skip[val >> 3] >> 2);
++			= toc_relocs + (skip[val >> 3] >> 2);
+ 		      unsigned long tsym = ELF64_R_SYM (tocrel->r_info);
+ 
+ 		      switch (r_type)
+@@ -8329,34 +8334,35 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 
+ 	  /* We shouldn't have local or global symbols defined in the TOC,
+ 	     but handle them anyway.  */
+-	  for (sym = local_syms;
+-	       sym < local_syms + symtab_hdr->sh_info;
+-	       ++sym)
+-	    if (sym->st_value != 0
+-		&& bfd_section_from_elf_index (ibfd, sym->st_shndx) == toc)
+-	      {
+-		unsigned long i;
++	  if (local_syms != NULL)
++	    for (sym = local_syms;
++		 sym < local_syms + symtab_hdr->sh_info;
++		 ++sym)
++	      if (sym->st_value != 0
++		  && bfd_section_from_elf_index (ibfd, sym->st_shndx) == toc)
++		{
++		  unsigned long i;
+ 
+-		if (sym->st_value > toc->rawsize)
+-		  i = toc->rawsize >> 3;
+-		else
+-		  i = sym->st_value >> 3;
++		  if (sym->st_value > toc->rawsize)
++		    i = toc->rawsize >> 3;
++		  else
++		    i = sym->st_value >> 3;
+ 
+-		if ((skip[i] & (ref_from_discarded | can_optimize)) != 0)
+-		  {
+-		    if (local_toc_syms)
+-		      (*_bfd_error_handler)
+-			(_("%s defined on removed toc entry"),
+-			 bfd_elf_sym_name (ibfd, symtab_hdr, sym, NULL));
+-		    do
+-		      ++i;
+-		    while ((skip[i] & (ref_from_discarded | can_optimize)));
+-		    sym->st_value = (bfd_vma) i << 3;
+-		  }
++		  if ((skip[i] & (ref_from_discarded | can_optimize)) != 0)
++		    {
++		      if (local_toc_syms)
++			(*_bfd_error_handler)
++			  (_("%s defined on removed toc entry"),
++			   bfd_elf_sym_name (ibfd, symtab_hdr, sym, NULL));
++		      do
++			++i;
++		      while ((skip[i] & (ref_from_discarded | can_optimize)));
++		      sym->st_value = (bfd_vma) i << 3;
++		    }
+ 
+-		sym->st_value -= skip[i];
+-		symtab_hdr->contents = (unsigned char *) local_syms;
+-	      }
++		  sym->st_value -= skip[i];
++		  symtab_hdr->contents = (unsigned char *) local_syms;
++		}
+ 
+ 	  /* Adjust any global syms defined in this toc input section.  */
+ 	  if (toc_inf.global_toc_syms)
+@@ -8373,15 +8379,15 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 	      Elf_Internal_Rela *wrel;
+ 	      bfd_size_type sz;
+ 
+-	      /* Read toc relocs.  */
+-	      relstart = _bfd_elf_link_read_relocs (ibfd, toc, NULL, NULL,
+-						    TRUE);
+-	      if (relstart == NULL)
++	      /* Remove unused toc relocs, and adjust those we keep.  */
++	      if (toc_relocs == NULL)
++		toc_relocs = _bfd_elf_link_read_relocs (ibfd, toc, NULL, NULL,
++							info->keep_memory);
++	      if (toc_relocs == NULL)
+ 		goto error_ret;
+ 
+-	      /* Remove unused toc relocs, and adjust those we keep.  */
+-	      wrel = relstart;
+-	      for (rel = relstart; rel < relstart + toc->reloc_count; ++rel)
++	      wrel = toc_relocs;
++	      for (rel = toc_relocs; rel < toc_relocs + toc->reloc_count; ++rel)
+ 		if ((skip[rel->r_offset >> 3]
+ 		     & (ref_from_discarded | can_optimize)) == 0)
+ 		  {
+@@ -8394,12 +8400,16 @@ ppc64_elf_edit_toc (struct bfd_link_info
+ 					    &local_syms, NULL, NULL))
+ 		  goto error_ret;
+ 
+-	      toc->reloc_count = wrel - relstart;
++	      elf_section_data (toc)->relocs = toc_relocs;
++	      toc->reloc_count = wrel - toc_relocs;
+ 	      sz = elf_section_data (toc)->rel_hdr.sh_entsize;
+ 	      elf_section_data (toc)->rel_hdr.sh_size = toc->reloc_count * sz;
+ 	      BFD_ASSERT (elf_section_data (toc)->rel_hdr2 == NULL);
+ 	    }
+ 	}
++      else if (toc_relocs != NULL
++	       && elf_section_data (toc)->relocs != toc_relocs)
++	free (toc_relocs);
+ 
+       if (local_syms != NULL
+ 	  && symtab_hdr->contents != (unsigned char *) local_syms)
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/powerpc.exp
+===================================================================
+--- binutils-2.20.51.0.2.orig/ld/testsuite/ld-powerpc/powerpc.exp
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/powerpc.exp
+@@ -175,6 +175,10 @@ set ppc64elftests {
+       "tlsmark"}
+     {"sym@tocbase" "-shared -melf64ppc" "-a64" {symtocbase-1.s symtocbase-2.s}
+ 	{{objdump -dj.data symtocbase.d}} "symtocbase.so"}
++    {"TOC opt2" "-melf64ppc --defsym x=2" "-a64"  {tocopt2.s}
++	{{ld tocopt2.out} {objdump -s tocopt2.d}} "tocopt2"}
++    {"TOC opt3" "-melf64ppc -no-keep-memory --defsym x=2" "-a64"  {tocopt3.s}
++	{{objdump -s tocopt3.d}} "tocopt3"}
+ }
+ 
+ 
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.d
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.d
+@@ -0,0 +1,5 @@
++
++.*:     file format .*
++
++Contents of section \.text:
++ 100000b0 3d22effe 39297f4a .*
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.out
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.out
+@@ -0,0 +1 @@
++.*: xt defined on removed toc entry
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.s
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt2.s
+@@ -0,0 +1,10 @@
++ .globl xt
++ .section .toc,"aw"
++xt:
++ .quad x
++
++ .globl _start
++ .text
++_start:
++ addis 9,2,xt@toc@ha
++ ld 9,xt@toc@l(9)
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt3.d
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt3.d
+@@ -0,0 +1,5 @@
++
++.*:     file format .*
++
++Contents of section \.text:
++ 100000b0 3d22effe 39297f4a .*
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt3.s
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-powerpc/tocopt3.s
+@@ -0,0 +1,9 @@
++ .section .toc,"aw"
++0:
++ .quad x
++
++ .globl _start
++ .text
++_start:
++ addis 9,2,0b@toc@ha
++ ld 9,0b@toc@l(9)
+Index: binutils-2.20.51.0.2/ld/testsuite/lib/ld-lib.exp
+===================================================================
+--- binutils-2.20.51.0.2.orig/ld/testsuite/lib/ld-lib.exp
++++ binutils-2.20.51.0.2/ld/testsuite/lib/ld-lib.exp
+@@ -1110,6 +1110,7 @@ proc regexp_diff { file_1 file_2 } {
+         } else {
+             verbose "regexp \"^$line_b$\"\nline   \"$line_a\"" 3
+             if ![regexp "^$line_b$" "$line_a"] {
++		verbose "regexp_diff match failure\n" 3
+ 		send_log "regexp_diff match failure\n"
+ 		send_log "regexp \"^$line_b$\"\nline   \"$line_a\"\n"
+ 		set differences 1
+@@ -1136,6 +1137,12 @@ proc file_contents { filename } {
+     return $contents
+ }
+ 
++proc set_file_contents { filename contents } {
++    set file [open $filename w]
++    puts $file "$contents"
++    close $file
++}
++
+ # Create an archive using ar
+ #
+ proc ar_simple_create { ar aropts target objects } {
+@@ -1162,6 +1169,10 @@ proc ar_simple_create { ar aropts target
+ # objdump: Apply objdump options on result.  Compare with regex (last arg).
+ # nm: Apply nm options on result.  Compare with regex (last arg).
+ # readelf: Apply readelf options on result.  Compare with regex (last arg).
++# ld: Don't apply anything on result.  Compare output during linking with 
++#     regex (second arg).  Note that this *must* be the first action if it
++#     is to be used at all; in all other cases, any output from the linker
++#     during linking is treated as a sign of an error and FAILs the test.
+ #
+ proc run_ld_link_tests { ldtests } {
+     global ld
+@@ -1176,6 +1187,7 @@ proc run_ld_link_tests { ldtests } {
+     global CC
+     global CFLAGS
+     global runtests
++    global exec_output
+ 
+     foreach testitem $ldtests {
+ 	set testname [lindex $testitem 0]
+@@ -1193,6 +1205,8 @@ proc run_ld_link_tests { ldtests } {
+ 	set objfiles {}
+ 	set is_unresolved 0
+ 	set failed 0
++	set maybe_failed 0
++	set ld_output ""
+ 
+ #	verbose -log "Testname is $testname"
+ #	verbose -log "ld_options is $ld_options"
+@@ -1235,8 +1249,8 @@ proc run_ld_link_tests { ldtests } {
+ 		set failed 0
+ 	    }
+ 	} elseif { ![ld_simple_link $ld $binfile "-L$srcdir/$subdir $ld_options $objfiles"] } {
+-	    fail $testname
+-	    set failed 1
++	    set maybe_failed 1
++	    set ld_output "$exec_output"
+ 	} else {
+ 	    set failed 0
+ 	}
+@@ -1257,6 +1271,8 @@ proc run_ld_link_tests { ldtests } {
+ 		        { set dump_prog $nm }
+ 		    readelf
+ 		        { set dump_prog $READELF }
++		    ld
++		        { set dump_prog "ld" }
+ 		    default
+ 			{
+ 			    perror "Unrecognized action $action"
+@@ -1265,7 +1281,21 @@ proc run_ld_link_tests { ldtests } {
+ 			}
+ 		    }
+ 
+-		if { $dump_prog != "" } {
++		if { $action == "ld" } {
++		    set dumpfile [lindex $actionlist 1]
++		    verbose "dumpfile is $dumpfile"
++		    set_file_contents "tmpdir/ld.messages" "$ld_output"
++		    verbose "ld.messages has '[file_contents tmpdir/ld.messages]'"
++		    if { [regexp_diff "tmpdir/ld.messages" "$srcdir/$subdir/$dumpfile"] } then {
++			verbose "output is $ld_output" 2
++			set failed 1
++			break
++		    }
++		    set maybe_failed 0
++		} elseif { $maybe_failed != 0 } {
++		    set failed 1
++		    break
++		} elseif { $dump_prog != "" } {
+ 		    set dumpfile [lindex $actionlist 2]
+ 		    set binary $dump_prog
+ 

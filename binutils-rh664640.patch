@@ -1,0 +1,26 @@
+2011-01-11  Andreas Schwab  <schwab@redhat.com>
+
+	* readelf.c (print_symbol): Handle symbol characters as unsigned.
+
+Index: binutils-2.20.51.0.2/binutils/readelf.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/binutils/readelf.c
++++ binutils-2.20.51.0.2/binutils/readelf.c
+@@ -467,7 +467,7 @@ print_symbol (int width, const char * sy
+ 
+       /* Now display the non-printing character, if
+ 	 there is room left in which to dipslay it.  */
+-      if (*c < 32)
++      if ((unsigned char) *c < 32)
+ 	{
+ 	  if (width < 2)
+ 	    break;
+@@ -482,7 +482,7 @@ print_symbol (int width, const char * sy
+ 	  if (width < 6)
+ 	    break;
+ 
+-	  printf ("<0x%.2x>", *c);
++	  printf ("<0x%.2x>", (unsigned char) *c);
+ 
+ 	  width -= 6;
+ 	  num_printed += 6;

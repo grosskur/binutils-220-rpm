@@ -1,0 +1,1337 @@
+2010-10-25  Daniel Jacobowitz  <dan@codesourcery.com>
+
+bfd/:
+	* elf-bfd.h (RELOC_AGAINST_DISCARDED_SECTION): Always call
+	_bfd_clear_contents.  Pass it the input section.
+	* libbfd-in.h (_bfd_clear_contents): Add input_section argument.
+	* libbfd.h: Regenerate.
+	* reloc.c (_bfd_clear_contents): Take input_section argument.
+	Use non-zero for .debug_ranges.
+	(bfd_generic_get_relocated_section_conten): Update _bfd_clear_contents
+	call.
+
+	* elf32-arm.c (elf32_arm_relocate_section): Use
+	RELOC_AGAINST_DISCARDED_SECTION.
+	* elf-m10200.c (mn10200_elf_relocate_section): Likewise.
+	* elf-m10300.c (mn10300_elf_relocate_section): Likewise.
+	* elf32-arm.c (elf32_arm_relocate_section): Likewise.
+	* elf32-avr.c (elf32_avr_relocate_section): Likewise.
+	* elf32-bfin.c (bfin_relocate_section): Likewise.
+	(bfinfdpic_relocate_section): Likewise.
+	* elf32-cr16.c (elf32_cr16_relocate_section): Likewise.
+	* elf32-cr16c.c (elf32_cr16c_relocate_section): Likewise.
+	* elf32-cris.c (cris_elf_relocate_section): Likewise.
+	* elf32-crx.c (elf32_crx_relocate_section): Likewise.
+	* elf32-d10v.c (elf32_d10v_relocate_section): Likewise.
+	* elf32-fr30.c (fr30_elf_relocate_section): Likewise.
+	* elf32-frv.c (elf32_frv_relocate_section): Likewise.
+	* elf32-h8300.c (elf32_h8_relocate_section): Likewise.
+	* elf32-hppa.c (elf32_hppa_relocate_section): Likewise.
+	* elf32-i370.c (i370_elf_relocate_section): Likewise.
+	* elf32-i860.c (elf32_i860_relocate_section): Likewise.
+	* elf32-ip2k.c (ip2k_elf_relocate_section): Likewise.
+	* elf32-iq2000.c (iq2000_elf_relocate_section): Likewise.
+	* elf32-lm32.c (lm32_elf_relocate_section): Likewise.
+	* elf32-m32c.c (m32c_elf_relocate_section): Likewise.
+	* elf32-m32r.c (m32r_elf_relocate_section): Likewise.
+	* elf32-m68hc1x.c (elf32_m68hc11_relocate_section): Likewise.
+	* elf32-m68k.c (elf_m68k_relocate_section): Likewise.
+	* elf32-mcore.c (mcore_elf_relocate_section): Likewise.
+	* elf32-mep.c (mep_elf_relocate_section): Likewise.
+	* elf32-moxie.c (moxie_elf_relocate_section): Likewise.
+	* elf32-msp430.c (elf32_msp430_relocate_section): Likewise.
+	* elf32-mt.c (mt_elf_relocate_section): Likewise.
+	* elf32-openrisc.c (openrisc_elf_relocate_section): Likewise.
+	* elf32-ppc.c (ppc_elf_relocate_section): Likewise.
+	* elf32-rx.c (rx_elf_relocate_section): Likewise.
+	* elf32-s390.c (elf_s390_relocate_section): Likewise.
+	* elf32-score.c (s3_bfd_score_elf_relocate_section): Likewise.
+	* elf32-score7.c (s7_bfd_score_elf_relocate_section): Likewise.
+	* elf32-sh.c (sh_elf_relocate_section): Likewise.
+	* elf32-spu.c (spu_elf_relocate_section): Likewise.
+	* elf32-v850.c (v850_elf_relocate_section): Likewise.
+	* elf32-vax.c (elf_vax_relocate_section): Likewise.
+	* elf32-xc16x.c (elf32_xc16x_relocate_section): Likewise.
+	* elf32-xstormy16.c (xstormy16_elf_relocate_section): Likewise.
+	* elf32-xtensa.c (elf_xtensa_relocate_section): Likewise.
+	* elf64-alpha.c (elf64_alpha_relocate_section_r): Likewise.
+	(elf64_alpha_relocate_section): Likewise.
+	* elf64-hppa.c (elf64_hppa_relocate_section): Likewise.
+	* elf64-mmix.c (mmix_elf_relocate_section): Likewise.
+	* elf64-ppc.c (ppc64_elf_relocate_section): Likewise.
+	* elf64-s390.c (elf_s390_relocate_section): Likewise.
+	* elf64-sh64.c (sh_elf64_relocate_section): Likewise.
+	* elfxx-ia64.c (elfNN_ia64_relocate_section): Likewise.
+	* elfxx-mips.c (_bfd_mips_elf_relocate_section): Likewise.
+	* elfxx-sparc.c (_bfd_sparc_elf_relocate_section): Likewise.
+
+ld/testsuite/:
+	* ld-discard/zero-range.d, ld-discard/zero-range.s: New files.
+
+Index: binutils-2.20.51.0.2/bfd/elf-bfd.h
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf-bfd.h
++++ binutils-2.20.51.0.2/bfd/elf-bfd.h
+@@ -2333,6 +2333,9 @@ extern asection _bfd_elf_large_com_secti
+ #define RELOC_AGAINST_DISCARDED_SECTION(info, input_bfd, input_section,	\
+ 					rel, relend, howto, contents)	\
+   {									\
++    _bfd_clear_contents (howto, input_bfd, input_section,		\
++			 contents + rel->r_offset);			\
++									\
+     if (info->relocatable						\
+ 	&& (input_section->flags & SEC_DEBUGGING))			\
+       {									\
+@@ -2358,7 +2361,6 @@ extern asection _bfd_elf_large_com_secti
+ 	  }								\
+       }									\
+ 									\
+-    _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);	\
+     rel->r_info = 0;							\
+     rel->r_addend = 0;							\
+     continue;								\
+Index: binutils-2.20.51.0.2/bfd/elf-m10200.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf-m10200.c
++++ binutils-2.20.51.0.2/bfd/elf-m10200.c
+@@ -401,15 +401,8 @@ mn10200_elf_relocate_section (output_bfd
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf-m10300.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf-m10300.c
++++ binutils-2.20.51.0.2/bfd/elf-m10300.c
+@@ -1518,15 +1518,8 @@ mn10300_elf_relocate_section (bfd *outpu
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-arm.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-arm.c
++++ binutils-2.20.51.0.2/bfd/elf32-arm.c
+@@ -8909,15 +8909,8 @@ elf32_arm_relocate_section (bfd *       
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-avr.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-avr.c
++++ binutils-2.20.51.0.2/bfd/elf32-avr.c
+@@ -1213,15 +1213,8 @@ elf32_avr_relocate_section (bfd *output_
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-bfin.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-bfin.c
++++ binutils-2.20.51.0.2/bfd/elf32-bfin.c
+@@ -1428,15 +1428,8 @@ bfin_relocate_section (bfd * output_bfd,
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+@@ -2652,15 +2645,8 @@ bfinfdpic_relocate_section (bfd * output
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-cr16.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-cr16.c
++++ binutils-2.20.51.0.2/bfd/elf32-cr16.c
+@@ -1471,15 +1471,8 @@ elf32_cr16_relocate_section (bfd *output
+         }
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-       {
+-         /* For relocs against symbols from removed linkonce sections,
+-            or sections discarded by a linker script, we just want the
+-            section contents zeroed.  Avoid any special processing.  */
+-         _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-         rel->r_info = 0;
+-         rel->r_addend = 0;
+-         continue;
+-       }
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+         continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-cr16c.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-cr16c.c
++++ binutils-2.20.51.0.2/bfd/elf32-cr16c.c
+@@ -727,15 +727,8 @@ elf32_cr16c_relocate_section (bfd *outpu
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-cris.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-cris.c
++++ binutils-2.20.51.0.2/bfd/elf32-cris.c
+@@ -1178,15 +1178,8 @@ cris_elf_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-crx.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-crx.c
++++ binutils-2.20.51.0.2/bfd/elf32-crx.c
+@@ -878,15 +878,8 @@ elf32_crx_relocate_section (bfd *output_
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-d10v.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-d10v.c
++++ binutils-2.20.51.0.2/bfd/elf32-d10v.c
+@@ -464,15 +464,8 @@ elf32_d10v_relocate_section (bfd *output
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-fr30.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-fr30.c
++++ binutils-2.20.51.0.2/bfd/elf32-fr30.c
+@@ -578,15 +578,8 @@ fr30_elf_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-frv.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-frv.c
++++ binutils-2.20.51.0.2/bfd/elf32-frv.c
+@@ -2809,15 +2809,8 @@ elf32_frv_relocate_section (output_bfd, 
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-h8300.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-h8300.c
++++ binutils-2.20.51.0.2/bfd/elf32-h8300.c
+@@ -461,15 +461,8 @@ elf32_h8_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-hppa.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-hppa.c
++++ binutils-2.20.51.0.2/bfd/elf32-hppa.c
+@@ -3699,17 +3699,10 @@ elf32_hppa_relocate_section (bfd *output
+ 	}
+ 
+       if (sym_sec != NULL && elf_discarded_section (sym_sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce
+-	     sections, or sections discarded by a linker script,
+-	     we just want the section contents zeroed.  Avoid any
+-	     special processing.  */
+-	  _bfd_clear_contents (elf_hppa_howto_table + r_type, input_bfd,
+-			       contents + rela->r_offset);
+-	  rela->r_info = 0;
+-	  rela->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rela, relend,
++					 elf_hppa_howto_table + r_type,
++					 contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-i370.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-i370.c
++++ binutils-2.20.51.0.2/bfd/elf32-i370.c
+@@ -1149,15 +1149,8 @@ i370_elf_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-i860.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-i860.c
++++ binutils-2.20.51.0.2/bfd/elf32-i860.c
+@@ -1129,15 +1129,8 @@ elf32_i860_relocate_section (bfd *output
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-ip2k.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-ip2k.c
++++ binutils-2.20.51.0.2/bfd/elf32-ip2k.c
+@@ -1461,15 +1461,8 @@ ip2k_elf_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-iq2000.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-iq2000.c
++++ binutils-2.20.51.0.2/bfd/elf32-iq2000.c
+@@ -634,15 +634,8 @@ iq2000_elf_relocate_section (bfd *		    
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-lm32.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-lm32.c
++++ binutils-2.20.51.0.2/bfd/elf32-lm32.c
+@@ -888,15 +888,8 @@ lm32_elf_relocate_section (bfd *output_b
+         }
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+         {
+Index: binutils-2.20.51.0.2/bfd/elf32-m32c.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-m32c.c
++++ binutils-2.20.51.0.2/bfd/elf32-m32c.c
+@@ -435,15 +435,8 @@ m32c_elf_relocate_section
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-m32r.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-m32r.c
++++ binutils-2.20.51.0.2/bfd/elf32-m32r.c
+@@ -2610,15 +2610,8 @@ m32r_elf_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable && !use_rel)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-m68hc1x.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-m68hc1x.c
++++ binutils-2.20.51.0.2/bfd/elf32-m68hc1x.c
+@@ -960,15 +960,8 @@ elf32_m68hc11_relocate_section (bfd *out
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-m68k.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-m68k.c
++++ binutils-2.20.51.0.2/bfd/elf32-m68k.c
+@@ -3717,15 +3717,8 @@ elf_m68k_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-mcore.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-mcore.c
++++ binutils-2.20.51.0.2/bfd/elf32-mcore.c
+@@ -467,15 +467,8 @@ mcore_elf_relocate_section (bfd * output
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-mep.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-mep.c
++++ binutils-2.20.51.0.2/bfd/elf32-mep.c
+@@ -500,15 +500,8 @@ mep_elf_relocate_section
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-moxie.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-moxie.c
++++ binutils-2.20.51.0.2/bfd/elf32-moxie.c
+@@ -253,15 +253,8 @@ moxie_elf_relocate_section (bfd *output_
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-msp430.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-msp430.c
++++ binutils-2.20.51.0.2/bfd/elf32-msp430.c
+@@ -455,15 +455,8 @@ elf32_msp430_relocate_section (bfd * out
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-mt.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-mt.c
++++ binutils-2.20.51.0.2/bfd/elf32-mt.c
+@@ -355,15 +355,8 @@ mt_elf_relocate_section
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-openrisc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-openrisc.c
++++ binutils-2.20.51.0.2/bfd/elf32-openrisc.c
+@@ -374,15 +374,8 @@ openrisc_elf_relocate_section (bfd *outp
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-ppc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-ppc.c
++++ binutils-2.20.51.0.2/bfd/elf32-ppc.c
+@@ -6861,10 +6861,8 @@ ppc_elf_relocate_section (bfd *output_bf
+ 	  howto = NULL;
+ 	  if (r_type < R_PPC_max)
+ 	    howto = ppc_elf_howto_table[r_type];
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
++	  RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					   rel, relend, howto, contents);
+ 	}
+ 
+       if (info->relocatable)
+Index: binutils-2.20.51.0.2/bfd/elf32-rx.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-rx.c
++++ binutils-2.20.51.0.2/bfd/elf32-rx.c
+@@ -510,15 +510,8 @@ rx_elf_relocate_section
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf32-s390.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-s390.c
++++ binutils-2.20.51.0.2/bfd/elf32-s390.c
+@@ -2291,15 +2291,8 @@ elf_s390_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-score.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-score.c
++++ binutils-2.20.51.0.2/bfd/elf32-score.c
+@@ -2689,15 +2689,8 @@ s3_bfd_score_elf_relocate_section (bfd *
+         }
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-        {
+-          /* For relocs against symbols from removed linkonce sections,
+-             or sections discarded by a linker script, we just want the
+-             section contents zeroed.  Avoid any special processing.  */
+-          _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-          rel->r_info = 0;
+-          rel->r_addend = 0;
+-          continue;
+-        }
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+         {
+Index: binutils-2.20.51.0.2/bfd/elf32-score7.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-score7.c
++++ binutils-2.20.51.0.2/bfd/elf32-score7.c
+@@ -2490,15 +2490,8 @@ s7_bfd_score_elf_relocate_section (bfd *
+         }
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-        {
+-          /* For relocs against symbols from removed linkonce sections,
+-             or sections discarded by a linker script, we just want the
+-             section contents zeroed.  Avoid any special processing.  */
+-          _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-          rel->r_info = 0;
+-          rel->r_addend = 0;
+-          continue;
+-        }
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+         {
+Index: binutils-2.20.51.0.2/bfd/elf32-sh.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-sh.c
++++ binutils-2.20.51.0.2/bfd/elf32-sh.c
+@@ -3452,15 +3452,8 @@ sh_elf_relocate_section (bfd *output_bfd
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-spu.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-spu.c
++++ binutils-2.20.51.0.2/bfd/elf32-spu.c
+@@ -4897,15 +4897,8 @@ spu_elf_relocate_section (bfd *output_bf
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-v850.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-v850.c
++++ binutils-2.20.51.0.2/bfd/elf32-v850.c
+@@ -1645,15 +1645,8 @@ v850_elf_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-vax.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-vax.c
++++ binutils-2.20.51.0.2/bfd/elf32-vax.c
+@@ -1467,15 +1467,8 @@ elf_vax_relocate_section (bfd *output_bf
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-xc16x.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-xc16x.c
++++ binutils-2.20.51.0.2/bfd/elf32-xc16x.c
+@@ -386,13 +386,11 @@ elf32_xc16x_relocate_section (bfd *outpu
+ 	{
+ 	  /* For relocs against symbols from removed linkonce sections,
+ 	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
++	     section contents cleared.  Avoid any special processing.  */
+ 	  reloc_howto_type *howto;
+ 	  howto = xc16x_reloc_type_lookup (input_bfd, r_type);
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
++	  RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					   rel, relend, howto, contents);
+ 	}
+ 
+       if (info->relocatable)
+Index: binutils-2.20.51.0.2/bfd/elf32-xstormy16.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-xstormy16.c
++++ binutils-2.20.51.0.2/bfd/elf32-xstormy16.c
+@@ -832,15 +832,8 @@ xstormy16_elf_relocate_section (bfd *   
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf32-xtensa.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf32-xtensa.c
++++ binutils-2.20.51.0.2/bfd/elf32-xtensa.c
+@@ -2641,15 +2641,8 @@ elf_xtensa_relocate_section (bfd *output
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf64-alpha.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-alpha.c
++++ binutils-2.20.51.0.2/bfd/elf64-alpha.c
+@@ -3984,16 +3984,10 @@ elf64_alpha_relocate_section_r (bfd *out
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  */
+-	  _bfd_clear_contents (elf64_alpha_howto_table + r_type,
+-			       input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend,
++					 elf64_alpha_howto_table + r_type,
++					 contents);
+ 
+       if (sym != NULL && ELF_ST_TYPE (sym->st_info) == STT_SECTION)
+ 	rel->r_addend += sec->output_offset;
+@@ -4199,15 +4193,8 @@ elf64_alpha_relocate_section (bfd *outpu
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       addend = rel->r_addend;
+       value += addend;
+Index: binutils-2.20.51.0.2/bfd/elf64-hppa.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-hppa.c
++++ binutils-2.20.51.0.2/bfd/elf64-hppa.c
+@@ -3928,15 +3928,8 @@ elf64_hppa_relocate_section (bfd *output
+ 	}
+ 
+       if (sym_sec != NULL && elf_discarded_section (sym_sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf64-mmix.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-mmix.c
++++ binutils-2.20.51.0.2/bfd/elf64-mmix.c
+@@ -1413,15 +1413,8 @@ mmix_elf_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elf64-ppc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-ppc.c
++++ binutils-2.20.51.0.2/bfd/elf64-ppc.c
+@@ -11577,16 +11577,10 @@ ppc64_elf_relocate_section (bfd *output_
+       h = (struct ppc_link_hash_entry *) h_elf;
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (ppc64_elf_howto_table[r_type], input_bfd,
+-			       contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend,
++					 ppc64_elf_howto_table[r_type],
++					 contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf64-s390.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-s390.c
++++ binutils-2.20.51.0.2/bfd/elf64-s390.c
+@@ -2263,15 +2263,8 @@ elf_s390_relocate_section (output_bfd, i
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elf64-sh64.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-sh64.c
++++ binutils-2.20.51.0.2/bfd/elf64-sh64.c
+@@ -1670,15 +1670,8 @@ sh_elf64_relocate_section (bfd *output_b
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elfxx-ia64.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elfxx-ia64.c
++++ binutils-2.20.51.0.2/bfd/elfxx-ia64.c
+@@ -4543,16 +4543,9 @@ elfNN_ia64_relocate_section (bfd *output
+ 	    continue;
+ 	}
+ 
+-      /* For relocs against symbols from removed linkonce sections,
+-	 or sections discarded by a linker script, we just want the
+-	 section contents zeroed.  Avoid any special processing.  */
+       if (sym_sec != NULL && elf_discarded_section (sym_sec))
+-	{
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/elfxx-mips.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elfxx-mips.c
++++ binutils-2.20.51.0.2/bfd/elfxx-mips.c
+@@ -8927,15 +8927,8 @@ _bfd_mips_elf_relocate_section (bfd *out
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce sections,
+-	     or sections discarded by a linker script, we just want the
+-	     section contents zeroed.  Avoid any special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (r_type == R_MIPS_64 && ! NEWABI_P (input_bfd))
+ 	{
+Index: binutils-2.20.51.0.2/bfd/elfxx-sparc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elfxx-sparc.c
++++ binutils-2.20.51.0.2/bfd/elfxx-sparc.c
+@@ -2590,16 +2590,8 @@ _bfd_sparc_elf_relocate_section (bfd *ou
+ 	}
+ 
+       if (sec != NULL && elf_discarded_section (sec))
+-	{
+-	  /* For relocs against symbols from removed linkonce
+-	     sections, or sections discarded by a linker script, we
+-	     just want the section contents zeroed.  Avoid any
+-	     special processing.  */
+-	  _bfd_clear_contents (howto, input_bfd, contents + rel->r_offset);
+-	  rel->r_info = 0;
+-	  rel->r_addend = 0;
+-	  continue;
+-	}
++	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
++					 rel, relend, howto, contents);
+ 
+       if (info->relocatable)
+ 	continue;
+Index: binutils-2.20.51.0.2/bfd/libbfd-in.h
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/libbfd-in.h
++++ binutils-2.20.51.0.2/bfd/libbfd-in.h
+@@ -557,7 +557,7 @@ extern bfd_reloc_status_type _bfd_reloca
+ 
+ /* Clear a given location using a given howto.  */
+ extern void _bfd_clear_contents (reloc_howto_type *howto, bfd *input_bfd,
+-				 bfd_byte *location);
++				 asection *input_section, bfd_byte *location);
+ 
+ /* Link stabs in sections in the first pass.  */
+ 
+Index: binutils-2.20.51.0.2/bfd/libbfd.h
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/libbfd.h
++++ binutils-2.20.51.0.2/bfd/libbfd.h
+@@ -562,7 +562,7 @@ extern bfd_reloc_status_type _bfd_reloca
+ 
+ /* Clear a given location using a given howto.  */
+ extern void _bfd_clear_contents (reloc_howto_type *howto, bfd *input_bfd,
+-				 bfd_byte *location);
++				 asection *input_section, bfd_byte *location);
+ 
+ /* Link stabs in sections in the first pass.  */
+ 
+Index: binutils-2.20.51.0.2/bfd/reloc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/reloc.c
++++ binutils-2.20.51.0.2/bfd/reloc.c
+@@ -1545,14 +1545,15 @@ _bfd_relocate_contents (reloc_howto_type
+   return flag;
+ }
+ 
+-/* Clear a given location using a given howto, by applying a relocation value
+-   of zero and discarding any in-place addend.  This is used for fixed-up
++/* Clear a given location using a given howto, by applying a fixed relocation
++   value and discarding any in-place addend.  This is used for fixed-up
+    relocations against discarded symbols, to make ignorable debug or unwind
+    information more obvious.  */
+ 
+ void
+ _bfd_clear_contents (reloc_howto_type *howto,
+ 		     bfd *input_bfd,
++		     asection *input_section,
+ 		     bfd_byte *location)
+ {
+   int size;
+@@ -1586,6 +1587,13 @@ _bfd_clear_contents (reloc_howto_type *h
+   /* Zero out the unwanted bits of X.  */
+   x &= ~howto->dst_mask;
+ 
++  /* For a range list, use 1 instead of 0 as placeholder.  0
++     would terminate the list, hiding any later entries.  */
++  if (strcmp (bfd_get_section_name (input_bfd, input_section),
++	      ".debug_ranges") == 0
++      && (howto->dst_mask & 1) != 0)
++    x |= 1;
++
+   /* Put the relocated value back in the object file.  */
+   switch (size)
+     {
+@@ -5555,7 +5563,8 @@ bfd_generic_get_relocated_section_conten
+ 			 "unused", FALSE, 0, 0, FALSE);
+ 
+ 	      p = data + (*parent)->address * bfd_octets_per_byte (input_bfd);
+-	      _bfd_clear_contents ((*parent)->howto, input_bfd, p);
++	      _bfd_clear_contents ((*parent)->howto, input_bfd, input_section,
++				   p);
+ 	      (*parent)->sym_ptr_ptr = bfd_abs_section.symbol_ptr_ptr;
+ 	      (*parent)->addend = 0;
+ 	      (*parent)->howto = &none_howto;
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-discard/zero-range.d
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-discard/zero-range.d
+@@ -0,0 +1,8 @@
++#source: zero-range.s
++#ld: -T discard.ld
++#objdump: -s -j .debug_ranges
++
++.*:     file format .*elf.*
++
++Contents of section .debug_ranges:
++ 0000 (01)?000000(01)? (01)?000000(01)? 00000000 00000000 .*
+Index: binutils-2.20.51.0.2/ld/testsuite/ld-discard/zero-range.s
+===================================================================
+--- /dev/null
++++ binutils-2.20.51.0.2/ld/testsuite/ld-discard/zero-range.s
+@@ -0,0 +1,13 @@
++	.text
++	.globl _start
++_start:
++
++	.section	.debug_ranges
++	.long	.Ltext
++	.long	.Ltext + 2
++	.long	0
++	.long	0
++
++	.section	.text.exit,"ax"
++.Ltext:
++	.long	0

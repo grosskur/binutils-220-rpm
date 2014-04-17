@@ -1,0 +1,19 @@
+2011-05-04  Alan Modra  <amodra@gmail.com>
+
+	PR ld/12727
+	* elf64-ppc.c (ppc_build_one_stub <ppc_sub_plt_call>): Clear
+	was_undefined on dot-symbols.
+
+Index: binutils-2.20.51.0.2/bfd/elf64-ppc.c
+===================================================================
+--- binutils-2.20.51.0.2.orig/bfd/elf64-ppc.c
++++ binutils-2.20.51.0.2/bfd/elf64-ppc.c
+@@ -9618,6 +9618,8 @@ ppc_build_one_stub (struct bfd_hash_entr
+ 	     these checks could now disappear.  */
+ 	  if (fh->elf.root.type == bfd_link_hash_undefined)
+ 	    fh->elf.root.type = bfd_link_hash_undefweak;
++	  /* Stop undo_symbol_twiddle changing it back to undefined.  */
++	  fh->was_undefined = 0;
+ 	}
+ 
+       /* Now build the stub.  */
